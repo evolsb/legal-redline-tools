@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legal-redline-tools"
+version = "0.1.0"
+description = "Apply tracked changes to Word documents and generate lawyer-style redline PDFs"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Chris Sheehan"},
+]
+keywords = ["legal", "redline", "tracked-changes", "docx", "contract", "pdf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Legal Industry",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing :: Markup",
+]
+dependencies = [
+    "python-docx>=1.0",
+    "lxml>=4.9",
+    "fpdf2>=2.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/evolsb/legal-redline-tools"
+Issues = "https://github.com/evolsb/legal-redline-tools/issues"
+
+[project.scripts]
+legal-redline = "legal_redline.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["legal_redline*"]
