@@ -11,8 +11,14 @@ Every AI contract review tool can *analyze* contracts, but none can produce the 
 Takes an original `.docx` and a list of text changes (as JSON), and produces:
 
 1. **Tracked-changes `.docx`** — Real Word tracked changes (strikethrough + insertion) that recipients can accept/reject
-2. **Full-document redline PDF** — The entire contract rendered with inline red strikethrough and blue underline, plus a summary page (like Workshare/DeltaView output)
-3. **Summary PDF** — A schedule of proposed changes with section references and rationale
+2. **Full-document redline PDF** — The entire contract rendered with inline red strikethrough and blue underline, plus change bars and a summary page
+3. **Summary PDF** — A schedule of proposed changes (external mode for counterparty, internal mode with rationale)
+4. **Internal memo PDF** — Tier-grouped analysis with rationale, walkaway positions, and precedent citations
+5. **Markdown** — Structured output for PRs, documentation, or AI pipeline chaining
+6. **Document diff** — Compare two `.docx` files and generate redlines from differences
+7. **Section remapping** — Remap redline section references when switching document versions
+8. **Cross-agreement comparison** — Compare redline sets across multiple related agreements
+9. **Placeholder scanner** — Find blank fields, `$X`, `TBD`, and missing exhibit references
 
 ## Install
 
@@ -27,56 +33,102 @@ cd legal-redline-tools
 pip install -e .
 ```
 
-## Usage
+## Quick Start
 
 ### CLI
 
 ```bash
-# All three outputs at once:
-legal-redline original.docx output.docx \
+# Apply redlines and generate all outputs:
+legal-redline apply original.docx output.docx \
     --from-json redlines.json \
     --pdf full-redline.pdf \
     --summary-pdf summary.pdf \
+    --memo-pdf internal-memo.pdf \
+    --markdown redlines.md \
     --header "Proposed Redlines — Feb 2026"
 
-# Just the tracked-changes .docx:
-legal-redline original.docx output.docx \
+# Inline changes (no JSON file needed):
+legal-redline apply original.docx output.docx \
     --replace "old text" "new text" \
     --delete "text to remove" \
-    --insert-after "anchor text" "new text to add"
+    --insert-after "anchor text" "new text"
 
-# Just the full-document redline PDF:
-legal-redline original.docx --no-docx \
-    --from-json redlines.json \
-    --pdf redline.pdf \
-    --header "MC Comments — 01.09.26"
+# Compare two document versions:
+legal-redline diff original.docx revised.docx -o changes.json
+
+# Scan for blank fields and placeholders:
+legal-redline scan contract.docx
+
+# Remap section references to a new document:
+legal-redline remap old-agreement.docx new-agreement.docx \
+    --redlines redlines.json -o remapped.json
+
+# Compare redlines across agreements:
+legal-redline compare \
+    --agreements msa=msa-redlines.json tri-party=triparty-redlines.json \
+    -o comparison.md
 ```
 
 ### Python API
 
 ```python
-from legal_redline import apply_redlines, render_redline_pdf, generate_summary_pdf
+from legal_redline import (
+    apply_redlines, render_redline_pdf, generate_summary_pdf,
+    generate_memo_pdf, generate_markdown, diff_documents,
+    remap_redlines, compare_agreements, format_comparison_report,
+    scan_document,
+)
 
 redlines = [
-    {"type": "replace", "old": "20% of fees", "new": "100% of fees or $250K"},
+    {"type": "replace", "old": "20% of fees", "new": "100% of fees or $250K",
+     "section": "7.2", "title": "Liability Cap", "tier": 1,
+     "rationale": "20% is below market standard"},
     {"type": "delete", "text": "shall terminate without liability"},
-    {"type": "insert_after", "anchor": "Effective Date", "text": ". 90-day termination right"},
+    {"type": "insert_after", "anchor": "Effective Date",
+     "text": ". 90-day termination right"},
+    {"type": "add_section", "after_section": "Section 12",
+     "text": "New audit rights clause...", "new_section_number": "12A"},
 ]
 
 # Tracked-changes .docx
-apply_redlines("original.docx", "output.docx", redlines, author="Chris Sheehan")
+apply_redlines("original.docx", "output.docx", redlines)
 
 # Full-document redline PDF
 render_redline_pdf("original.docx", redlines, "redline.pdf",
                    header_text="Proposed Redlines")
 
-# Summary PDF
+# Summary PDF (external — clean, no rationale)
 generate_summary_pdf(redlines, "summary.pdf",
                      doc_title="Merchant Agreement v3",
-                     doc_parties="Acme Corp / Vendor Inc.")
+                     mode="external")
+
+# Summary PDF (internal — includes rationale/walkaway/precedent)
+generate_summary_pdf(redlines, "summary-internal.pdf",
+                     doc_title="Merchant Agreement v3",
+                     mode="internal")
+
+# Internal memo PDF (tier-grouped analysis)
+generate_memo_pdf(redlines, "memo.pdf",
+                  doc_title="Merchant Agreement v3")
+
+# Markdown output
+md = generate_markdown(redlines, doc_title="Agreement", mode="internal")
+
+# Diff two documents
+changes = diff_documents("v1.docx", "v2.docx")
+
+# Remap sections between document versions
+updated, report = remap_redlines("old.docx", "new.docx", redlines)
+
+# Cross-agreement comparison
+result = compare_agreements({"msa": msa_redlines, "sow": sow_redlines})
+print(format_comparison_report(result))
+
+# Scan for placeholders
+report = scan_document("contract.docx")
 ```
 
-### JSON Format
+## JSON Format
 
 ```json
 [
@@ -86,7 +138,10 @@ generate_summary_pdf(redlines, "summary.pdf",
         "new": "replacement text",
         "section": "7.2",
         "title": "Liability Cap",
-        "rationale": "20% is below market standard"
+        "tier": 1,
+        "rationale": "Below market standard",
+        "walkaway": "Accept 50% if pushed",
+        "precedent": "Industry standard is 100% of fees"
     },
     {
         "type": "delete",
@@ -96,53 +151,65 @@ generate_summary_pdf(redlines, "summary.pdf",
         "type": "insert_after",
         "anchor": "text to insert after",
         "text": "new text to add"
+    },
+    {
+        "type": "add_section",
+        "after_section": "Section 12",
+        "text": "New section content",
+        "new_section_number": "12A"
     }
 ]
 ```
 
-Optional fields (`section`, `title`, `rationale`) are used in PDF outputs for section references and explanatory notes.
+### Redline Types
 
-## Output Formats
+| Type | Required Fields | Description |
+|------|----------------|-------------|
+| `replace` | `old`, `new` | Find and replace text with tracked change |
+| `delete` | `text` | Delete text as tracked deletion |
+| `insert_after` | `anchor`, `text` | Insert new text after anchor |
+| `add_section` | `text`, `after_section` | Insert new paragraph/section |
 
-### Tracked-Changes `.docx`
+### Optional Metadata
 
-Produces a standard Word document with OOXML tracked changes (`w:ins` / `w:del` elements). Recipients can:
-- View changes in Word's Review pane
-- Accept or reject individual changes
-- Accept all changes at once
+| Field | Used In | Description |
+|-------|---------|-------------|
+| `section` | All outputs | Contract section reference (e.g. "7.2") |
+| `title` | All outputs | Human-readable title |
+| `tier` | Internal only | Priority 1-3 (1=non-starter, 2=important, 3=desirable) |
+| `rationale` | Internal only | Why the change is proposed |
+| `walkaway` | Internal only | Fall-back position |
+| `precedent` | Internal only | Market standard reference |
 
-**Note:** Google Docs does not properly render Word tracked changes. Use Word (desktop or online), LibreOffice, or any app that supports OOXML revisions.
+## Output Modes
 
-### Full-Document Redline PDF
+### External (counterparty-facing)
 
-Renders the entire contract as a PDF with:
-- **Red strikethrough** for deleted text
-- **Blue underline** for inserted text
-- **Change bars** in the left margin next to modified paragraphs
-- **Header** on every page
-- **Page numbers**
-- **Summary page** at the end with legend, statistics, and a table of all changes
+Clean outputs showing only the proposed changes — no rationale, tiers, or walkaway positions. This is what you send to the other side.
 
-This matches the output format of professional document comparison tools like Workshare and DeltaView.
+- Tracked-changes `.docx`
+- Full-document redline PDF
+- Summary PDF (`mode="external"`)
+- Markdown (`mode="external"`)
 
-### Summary PDF
+### Internal (team-facing)
 
-A standalone schedule of proposed changes showing:
-- Each change with section reference, type, current/proposed text
-- Strikethrough and underline formatting
-- Rationale for each change
-- Legend and metadata
+Full analysis with strategy context. Never send these to the counterparty.
 
-## Use with AI Agents
+- Internal memo PDF — tier-grouped with rationale, walkaway, precedent
+- Summary PDF (`mode="internal"`) — includes tier badges and strategy fields
+- Markdown (`mode="internal"`) — grouped by tier with all metadata
 
-This tool is designed to be the "last mile" in AI contract review pipelines. A typical workflow:
+## AI Skill
 
-1. **AI analyzes** the contract and identifies issues
-2. **AI generates** a JSON list of proposed changes
-3. **legal-redline-tools** produces the tracked-changes `.docx` and redline PDF
-4. **Lawyer reviews** the output and sends to counterparty
+The included `skill.md` provides a complete prompt for AI agents (Claude, GPT, Codex, etc.) to:
 
-Works with any AI system that can output JSON — Claude, GPT, or custom pipelines.
+1. Analyze a contract
+2. Identify problematic provisions with tier classification
+3. Generate the redlines JSON
+4. Produce all output formats
+
+Copy `skill.md` into your AI agent's skill/tool directory.
 
 ## Requirements
 
@@ -150,10 +217,6 @@ Works with any AI system that can output JSON — Claude, GPT, or custom pipelin
 - python-docx
 - lxml
 - fpdf2
-
-## Related
-
-- [claude-legal-skill](https://github.com/evolsb/claude-legal-skill) — AI contract review skill for Claude Code that can feed into this tool
 
 ## License
 
