@@ -42,16 +42,30 @@ def _wrap_text(text, max_chars=90):
 
 def generate_summary_pdf(redlines, output_path, doc_title=None,
                          author="Chris Sheehan", date_str=None,
-                         doc_parties=None):
+                         doc_parties=None, mode="external"):
     """
     Generate a summary-only redline PDF showing each proposed change
-    with strikethrough/underline formatting and optional rationale.
+    with strikethrough/underline formatting.
+
+    Args:
+        redlines: List of redline dicts
+        output_path: Output PDF path
+        doc_title: Document title
+        author: Author name
+        date_str: Date string
+        doc_parties: Parties description
+        mode: "external" (clean, no rationale/tier/walkaway) or
+              "internal" (includes rationale, walkaway, precedent)
 
     Each redline can optionally include:
         section: Contract section reference (e.g. "7.2")
         title: Human-readable title (e.g. "Liability Cap")
-        rationale: Why this change is proposed
+        rationale: Why this change is proposed (internal only)
+        walkaway: Walk-away position (internal only)
+        precedent: Market precedent (internal only)
+        tier: Priority tier 1-3 (internal only)
     """
+    internal = mode == "internal"
     if date_str is None:
         date_str = datetime.now().strftime("%B %d, %Y")
 
@@ -123,6 +137,9 @@ def generate_summary_pdf(redlines, output_path, doc_title=None,
         section = redline.get("section", "")
         title = redline.get("title", "")
         rationale = redline.get("rationale", "")
+        walkaway = redline.get("walkaway", "")
+        precedent = redline.get("precedent", "")
+        tier = redline.get("tier", 0)
 
         if pdf.get_y() > pdf.h - 60:
             pdf.add_page()
@@ -136,11 +153,18 @@ def generate_summary_pdf(redlines, output_path, doc_title=None,
         header_text = " ".join(header_parts) if header_parts else f"Change {idx + 1}"
 
         change_label = {"replace": "REPLACEMENT", "delete": "DELETION",
-                        "insert_after": "INSERTION"}.get(rtype, rtype.upper())
+                        "insert_after": "INSERTION",
+                        "add_section": "NEW SECTION"}.get(rtype, rtype.upper())
+
+        # Tier badge (internal only)
+        tier_suffix = ""
+        if internal and tier:
+            tier_labels = {1: "NON-STARTER", 2: "IMPORTANT", 3: "DESIRABLE"}
+            tier_suffix = f"  [T{tier}: {tier_labels.get(tier, '')}]"
 
         pdf.set_font("Helvetica", "B", 10)
         pdf.set_text_color(*BLACK)
-        pdf.cell(0, 6, _sanitize(f"{idx + 1}.  {header_text}"),
+        pdf.cell(0, 6, _sanitize(f"{idx + 1}.  {header_text}{tier_suffix}"),
                  new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "I", 8)
         pdf.set_text_color(*GRAY)
@@ -168,14 +192,40 @@ def generate_summary_pdf(redlines, output_path, doc_title=None,
             _render_labeled_text(pdf, left_margin, "Insert:", redline["text"],
                                  BLUE, underline=True)
 
+        elif rtype == "add_section":
+            after_sec = redline.get("after_section", "")
+            new_sec = redline.get("new_section_number", "")
+            if after_sec:
+                _render_labeled_text(pdf, left_margin, "After:", after_sec, BLACK)
+                pdf.ln(1)
+            sec_label = f"New {new_sec}:" if new_sec else "New:"
+            _render_labeled_text(pdf, left_margin, sec_label, redline["text"],
+                                 BLUE, underline=True)
+
         pdf.ln(2)
 
-        if rationale:
-            pdf.set_font("Helvetica", "I", 8)
-            pdf.set_text_color(*GRAY)
-            for line in _wrap_text(f"Rationale: {rationale}", 100):
-                pdf.cell(0, 4, line, new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(2)
+        # Internal-only fields: rationale, walkaway, precedent
+        if internal:
+            if rationale:
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(*GRAY)
+                for line in _wrap_text(f"Rationale: {rationale}", 100):
+                    pdf.cell(0, 4, line, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(1)
+            if walkaway:
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(*GRAY)
+                for line in _wrap_text(f"Walkaway: {walkaway}", 100):
+                    pdf.cell(0, 4, line, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(1)
+            if precedent:
+                pdf.set_font("Helvetica", "I", 8)
+                pdf.set_text_color(*GRAY)
+                for line in _wrap_text(f"Precedent: {precedent}", 100):
+                    pdf.cell(0, 4, line, new_x="LMARGIN", new_y="NEXT")
+                pdf.ln(1)
+            if rationale or walkaway or precedent:
+                pdf.ln(1)
 
         pdf.set_draw_color(*LIGHT_GRAY)
         pdf.line(x_start + 10, pdf.get_y(), x_end - 10, pdf.get_y())

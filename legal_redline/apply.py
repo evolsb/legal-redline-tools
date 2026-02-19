@@ -219,6 +219,48 @@ def apply_tracked_insertion(doc, after_text, new_text, author, date_str):
     return False
 
 
+def apply_tracked_add_section(doc, after_section, new_text, author, date_str,
+                               new_section_number=None):
+    """Insert a new section (as tracked insertion) after a section reference."""
+    # Find the paragraph containing the after_section reference
+    target_para = None
+    for para in doc.paragraphs:
+        full_text = _get_full_paragraph_text(para)
+        # Match "Section X.Y" or just the number at the start of a paragraph
+        if after_section in full_text:
+            target_para = para
+
+    if target_para is None:
+        return False
+
+    # Build the new paragraph text
+    if new_section_number:
+        insert_text = f"{new_section_number}. {new_text}"
+    else:
+        insert_text = new_text
+
+    # Create a new paragraph after the target as a tracked insertion
+    parent = target_para._element.getparent()
+    target_idx = list(parent).index(target_para._element)
+
+    # Create new paragraph element
+    new_para = OxmlElement("w:p")
+    ins = OxmlElement("w:ins")
+    ins.set(qn("w:id"), next_rev_id())
+    ins.set(qn("w:author"), author)
+    ins.set(qn("w:date"), date_str)
+    r = OxmlElement("w:r")
+    t = OxmlElement("w:t")
+    t.set(qn("xml:space"), "preserve")
+    t.text = insert_text
+    r.append(t)
+    ins.append(r)
+    new_para.append(ins)
+
+    parent.insert(target_idx + 1, new_para)
+    return True
+
+
 def apply_redlines(input_path, output_path, redlines, author="Chris Sheehan"):
     """
     Apply a list of redlines to a .docx file.
@@ -258,6 +300,15 @@ def apply_redlines(input_path, output_path, redlines, author="Chris Sheehan"):
             text = redline["text"]
             success = apply_tracked_insertion(doc, anchor, text, author, date_str)
             desc = f"Insert after: '{anchor[:40]}...'"
+
+        elif rtype == "add_section":
+            after_sec = redline.get("after_section", "")
+            text = redline["text"]
+            new_sec = redline.get("new_section_number")
+            success = apply_tracked_add_section(
+                doc, after_sec, text, author, date_str, new_sec
+            )
+            desc = f"Add section: '{new_sec or 'new'}' after '{after_sec}'"
 
         else:
             desc = f"Unknown type: {rtype}"

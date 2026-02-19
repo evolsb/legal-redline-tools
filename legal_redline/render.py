@@ -140,6 +140,9 @@ def _build_redline_segments(full_text, redlines):
             if pos >= 0:
                 end = pos + len(rl["anchor"])
                 matches.append((end, end, idx, rtype))  # zero-width match at insertion point
+        elif rtype == "add_section":
+            # add_section creates new paragraphs — handled separately in rendering
+            continue
 
     if not matches:
         return [{"text": full_text, "type": "normal"}], []
@@ -203,6 +206,66 @@ def _segments_to_html(segments, para_bold=False):
     return "".join(parts)
 
 
+def _render_table(pdf, tbl_element, body_size):
+    """Render a docx table element as a simple PDF table."""
+    from docx.oxml.ns import qn
+
+    rows = tbl_element.findall(qn("w:tr"))
+    if not rows:
+        return
+
+    # Extract cell texts
+    table_data = []
+    for tr in rows:
+        cells = tr.findall(qn("w:tc"))
+        row_data = []
+        for tc in cells:
+            # Get all paragraph text in cell
+            cell_text = ""
+            for p in tc.findall(qn("w:p")):
+                for r in p.findall(qn("w:r")):
+                    t = r.find(qn("w:t"))
+                    if t is not None and t.text:
+                        cell_text += t.text
+                cell_text += " "
+            row_data.append(cell_text.strip())
+        table_data.append(row_data)
+
+    if not table_data:
+        return
+
+    pdf.ln(2)
+
+    # Calculate column widths
+    num_cols = max(len(row) for row in table_data)
+    usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+    col_w = usable_w / max(num_cols, 1)
+
+    for row_idx, row in enumerate(table_data):
+        # Check if we need a new page
+        if pdf.get_y() > pdf.h - 20:
+            pdf.add_page()
+
+        # First row bold (header)
+        if row_idx == 0:
+            pdf.set_font("Helvetica", "B", body_size - 1)
+        else:
+            pdf.set_font("Helvetica", "", body_size - 1)
+        pdf.set_text_color(*BLACK)
+
+        for col_idx, cell in enumerate(row):
+            w = col_w if col_idx < num_cols else 0
+            pdf.cell(w, 5, _sanitize(cell[:60]), border=1, new_x="END")
+
+        # Pad missing cells
+        for _ in range(num_cols - len(row)):
+            pdf.cell(col_w, 5, "", border=1, new_x="END")
+
+        pdf.ln()
+
+    pdf.ln(3)
+
+
 def render_redline_pdf(docx_path, redlines, pdf_path, header_text=None,
                        author=None, date_str=None):
     """
@@ -230,64 +293,82 @@ def render_redline_pdf(docx_path, redlines, pdf_path, header_text=None,
     # Track which redlines were applied (for summary)
     applied_redlines = set()
     change_count = 0
-    changes_by_type = {"replace": 0, "delete": 0, "insert_after": 0}
+    changes_by_type = {"replace": 0, "delete": 0, "insert_after": 0, "add_section": 0}
 
-    # ── Render each paragraph ──
+    # ── Render document body (paragraphs and tables) ──
     line_height = 4.5
     body_size = 9
     total_paras = len(doc.paragraphs)
 
-    for para_idx, para in enumerate(doc.paragraphs):
-        full_text = _get_paragraph_text(para)
+    # Build ordered list of body elements (paragraphs and tables)
+    body = doc.element.body
+    for child in body:
+        tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
-        # Skip truly empty paragraphs but add spacing
-        if not full_text.strip():
-            pdf.ln(3)
-            continue
+        if tag == "p":
+            # Find matching paragraph object
+            para = None
+            for p in doc.paragraphs:
+                if p._element is child:
+                    para = p
+                    break
+            if para is None:
+                continue
 
-        heading_level = _detect_heading_level(para)
-        para_bold = _is_bold_paragraph(para)
+            full_text = _get_paragraph_text(para)
 
-        # ── Heading formatting ──
-        if heading_level > 0:
-            sizes = {1: 14, 2: 12, 3: 11, 4: 10, 5: 10, 6: 9}
-            font_size = sizes.get(heading_level, 10)
-            pdf.ln(3)
-            pdf.set_font("Helvetica", "B", font_size)
-            pdf.set_text_color(*BLACK)
-            pdf.multi_cell(0, font_size * 0.55, _sanitize(full_text))
-            pdf.ln(2)
-            continue
+            # Skip truly empty paragraphs but add spacing
+            if not full_text.strip():
+                pdf.ln(3)
+                continue
 
-        # ── Body paragraph: check for redlines ──
-        segments, applied = _build_redline_segments(full_text, redlines)
-        has_changes = len(applied) > 0
+            heading_level = _detect_heading_level(para)
+            para_bold = _is_bold_paragraph(para)
 
-        if has_changes:
-            for rl_idx in applied:
-                applied_redlines.add(rl_idx)
-                rtype = redlines[rl_idx]["type"]
-                if rtype in changes_by_type:
-                    changes_by_type[rtype] += 1
-                change_count += 1
+            # ── Heading formatting ──
+            if heading_level > 0:
+                sizes = {1: 14, 2: 12, 3: 11, 4: 10, 5: 10, 6: 9}
+                font_size = sizes.get(heading_level, 10)
+                pdf.ln(3)
+                pdf.set_font("Helvetica", "B", font_size)
+                pdf.set_text_color(*BLACK)
+                pdf.multi_cell(0, font_size * 0.55, _sanitize(full_text))
+                pdf.ln(2)
+                continue
 
-        # Record Y position for change bar
-        y_start = pdf.get_y()
+            # ── Body paragraph: check for redlines ──
+            segments, applied = _build_redline_segments(full_text, redlines)
+            has_changes = len(applied) > 0
 
-        # Build HTML and render
-        para_html = _segments_to_html(segments, para_bold=para_bold)
+            if has_changes:
+                for rl_idx in applied:
+                    applied_redlines.add(rl_idx)
+                    rtype = redlines[rl_idx]["type"]
+                    if rtype in changes_by_type:
+                        changes_by_type[rtype] += 1
+                    change_count += 1
 
-        if para_html.strip():
-            pdf.set_font("Helvetica", "", body_size)
-            pdf.set_text_color(*BLACK)
-            pdf.write_html(para_html)
-            pdf.ln(line_height)
+            # Record Y position for change bar
+            y_start = pdf.get_y()
 
-        y_end = pdf.get_y()
+            # Build HTML and render
+            para_html = _segments_to_html(segments, para_bold=para_bold)
 
-        # Add change bar
-        if has_changes:
-            pdf.add_change_bar(y_start, y_end)
+            if para_html.strip():
+                pdf.set_font("Helvetica", "", body_size)
+                pdf.set_text_color(*BLACK)
+                pdf.write_html(para_html)
+                pdf.ln(line_height)
+
+            y_end = pdf.get_y()
+
+            # Add change bar
+            if has_changes:
+                pdf.add_change_bar(y_start, y_end)
+
+        elif tag == "tbl":
+            # Render table
+            _render_table(pdf, child, body_size)
 
     # ── Summary page ──
     _add_summary_page(pdf, redlines, applied_redlines, changes_by_type,
@@ -417,6 +498,13 @@ def _add_summary_page(pdf, redlines, applied_redlines, changes_by_type,
             type_label = "Insertion"
             original = _sanitize(f"After: {rl['anchor']}")
             proposed = _sanitize(rl["text"])
+        elif rtype == "add_section":
+            type_label = "New Section"
+            after_sec = rl.get("after_section", "")
+            original = _sanitize(f"After: {after_sec}") if after_sec else ""
+            new_sec = rl.get("new_section_number", "")
+            prefix = f"{new_sec}. " if new_sec else ""
+            proposed = _sanitize(f"{prefix}{rl['text']}")
         else:
             type_label = rtype
             original = ""
