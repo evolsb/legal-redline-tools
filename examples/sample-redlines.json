@@ -1,0 +1,25 @@
+[
+    {
+        "type": "replace",
+        "old": "20% OF FEES PAID",
+        "new": "100% OF FEES PAID OR $250,000, WHICHEVER IS GREATER",
+        "section": "7.2",
+        "title": "Liability Cap",
+        "rationale": "20% is below market standard for infrastructure agreements."
+    },
+    {
+        "type": "delete",
+        "text": "shall be entitled to immediately terminate this Agreement without liability",
+        "section": "9.4",
+        "title": "At-Will Termination",
+        "rationale": "Vague standard gives Company unilateral termination right."
+    },
+    {
+        "type": "insert_after",
+        "anchor": "This Agreement shall commence on the Effective Date",
+        "text": ". Either party may terminate for convenience upon 90 days' written notice",
+        "section": "9.1",
+        "title": "Mutual Termination Right",
+        "rationale": "Adding symmetrical termination rights."
+    }
+]
