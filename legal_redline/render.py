@@ -396,67 +396,76 @@ def _add_summary_page(pdf, redlines, applied_redlines, changes_by_type,
     pdf.cell(0, 6, "Changes", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(3)
 
-    # Table header
-    col_widths = [10, 25, 70, 70]
-    headers = ["#", "Type", "Original", "Proposed"]
-    pdf.set_font("Helvetica", "B", 8)
-    pdf.set_fill_color(240, 240, 240)
-    for i, h in enumerate(headers):
-        w = col_widths[i]
-        pdf.cell(w, 6, h, border=1, fill=True, new_x="END")
-    pdf.ln()
+    # Render each change as a bordered block (not a cramped table)
+    usable_w = pdf.w - pdf.l_margin - pdf.r_margin
 
-    # Table rows
     for idx, rl in enumerate(redlines):
         rtype = rl["type"]
-        status = "Applied" if idx in applied_redlines else "Not found"
+        applied = idx in applied_redlines
+        section = rl.get("section", "")
+        title = rl.get("title", "")
 
         if rtype == "replace":
-            type_label = "Replace"
-            original = _sanitize(rl["old"][:80])
-            proposed = _sanitize(rl["new"][:80])
+            type_label = "Replacement"
+            original = _sanitize(rl["old"])
+            proposed = _sanitize(rl["new"])
         elif rtype == "delete":
-            type_label = "Delete"
-            original = _sanitize(rl["text"][:80])
-            proposed = "[deleted]"
+            type_label = "Deletion"
+            original = _sanitize(rl["text"])
+            proposed = None
         elif rtype == "insert_after":
-            type_label = "Insert"
-            original = _sanitize(f"After: {rl['anchor'][:60]}")
-            proposed = _sanitize(rl["text"][:80])
+            type_label = "Insertion"
+            original = _sanitize(f"After: {rl['anchor']}")
+            proposed = _sanitize(rl["text"])
         else:
             type_label = rtype
             original = ""
-            proposed = ""
+            proposed = None
 
         # Check if we need a new page
-        if pdf.get_y() > pdf.h - 30:
+        if pdf.get_y() > pdf.h - 45:
             pdf.add_page()
 
-        pdf.set_font("Helvetica", "", 7)
-        row_h = 5
+        # Change header line
+        label_parts = [f"{idx + 1}."]
+        if section:
+            label_parts.append(f"Section {section}")
+        if title:
+            label_parts.append(f"-- {title}")
+        label_parts.append(f"({type_label})")
+        if not applied:
+            label_parts.append("[NOT FOUND]")
 
-        # Number
-        pdf.set_text_color(*BLACK)
-        pdf.cell(col_widths[0], row_h, str(idx + 1), border=1, new_x="END")
+        pdf.set_font("Helvetica", "B", 8)
+        hdr_color = BLACK if applied else RED
+        pdf.set_text_color(*hdr_color)
+        pdf.cell(0, 5, _sanitize(" ".join(label_parts)),
+                 new_x="LMARGIN", new_y="NEXT")
 
-        # Type
-        if idx in applied_redlines:
-            pdf.set_text_color(*BLACK)
-        else:
-            pdf.set_text_color(*RED)
-        pdf.cell(col_widths[1], row_h, type_label, border=1, new_x="END")
-
-        # Original (truncated)
+        # Original text
+        indent = pdf.l_margin + 4
+        pdf.set_x(indent)
+        pdf.set_font("Courier", "", 7)
         color = RED if rtype in ("replace", "delete") else BLACK
         pdf.set_text_color(*color)
-        pdf.cell(col_widths[2], row_h, original[:45] + ("..." if len(original) > 45 else ""),
-                 border=1, new_x="END")
+        trunc = original[:120] + ("..." if len(original) > 120 else "")
+        pdf.multi_cell(usable_w - 8, 3.5, trunc, new_x="LMARGIN", new_y="NEXT")
 
-        # Proposed
-        color = BLUE if rtype in ("replace", "insert_after") else BLACK
-        pdf.set_text_color(*color)
-        pdf.cell(col_widths[3], row_h, proposed[:45] + ("..." if len(proposed) > 45 else ""),
-                 border=1, new_x="LMARGIN", new_y="NEXT")
+        # Proposed text
+        if proposed is not None:
+            pdf.set_x(indent)
+            pdf.set_font("Helvetica", "", 7)
+            pdf.set_text_color(*GRAY)
+            pdf.cell(8, 3.5, "->", new_x="END")
+            pdf.set_font("Courier", "", 7)
+            pdf.set_text_color(*BLUE)
+            trunc = proposed[:120] + ("..." if len(proposed) > 120 else "")
+            pdf.multi_cell(usable_w - 16, 3.5, trunc, new_x="LMARGIN", new_y="NEXT")
+
+        pdf.ln(2)
+        pdf.set_draw_color(*LIGHT_GRAY)
+        pdf.line(pdf.l_margin + 5, pdf.get_y(), pdf.w - pdf.r_margin - 5, pdf.get_y())
+        pdf.ln(2)
 
     # Footer
     pdf.ln(8)
