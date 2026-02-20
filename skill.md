@@ -127,7 +127,7 @@ updated, report = remap_redlines("old.docx", "new.docx", redlines)
         "tier": 1,
         "rationale": "20% cap is well below market standard for B2B SaaS (typically 100% of fees or 12-month fees). Creates asymmetric risk allocation.",
         "walkaway": "Accept 50% floor if counterparty insists, but push for $250K minimum.",
-        "precedent": "Industry standard is 100% of trailing 12-month fees. Comparable agreements use mutual liability caps."
+        "precedent": "Industry standard is 100% of trailing 12-month fees."
     },
     {
         "type": "delete",
