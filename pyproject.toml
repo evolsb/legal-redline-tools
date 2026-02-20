@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "legal-redline-tools"
-version = "0.1.0"
-description = "Apply tracked changes to Word documents and generate lawyer-style redline PDFs"
+version = "0.2.0"
+description = "Apply tracked changes to Word documents, generate redline PDFs, and power AI contract review pipelines"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
@@ -30,6 +30,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/evolsb/legal-redline-tools"
+Changelog = "https://github.com/evolsb/legal-redline-tools/blob/main/CHANGELOG.md"
 Issues = "https://github.com/evolsb/legal-redline-tools/issues"
 
 [project.scripts]
