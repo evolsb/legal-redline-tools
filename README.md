@@ -7,7 +7,7 @@
 
 **Generate tracked-changes Word docs and redline PDFs from a contract review — the same deliverables lawyers actually send.**
 
-Define your proposed changes as JSON. Get a tracked-changes `.docx` with real accept/reject markup, full-document redline PDFs, internal negotiation memos, and structured markdown. Works with any AI contract review agent or manual workflow.
+Define your proposed changes as JSON. Get a tracked-changes `.docx` with real accept/reject markup, full-document redline PDFs, internal negotiation memos, and structured markdown. Pairs with [**claude-legal-skill**](https://github.com/evolsb/claude-legal-skill) for end-to-end AI contract review, or works with any agent or manual workflow.
 
 ## The Problem
 
@@ -33,6 +33,14 @@ flowchart LR
 2. **Iterate** — Discuss findings in chat, adjust positions, add walkaway thresholds
 3. **Generate** — The agent outputs a JSON array of redlines, and this tool produces all deliverables
 4. **Send** — External files go to the counterparty. Internal memo stays with your team.
+
+## Use Cases
+
+- **SaaS vendor agreement** — Vendor sends a 30-page MSA. You review it with an AI agent, negotiate liability caps and termination rights, and send back a tracked-changes Word doc with 15 proposed changes.
+- **M&A due diligence** — Reviewing a target's customer contracts. Diff the template against each signed version, flag deviations, generate a summary for the deal team.
+- **Multi-party agreements** — Tri-party or sub-licensing deals where you need consistent redlines across related agreements (main agreement, exhibits, sub-partner templates). Cross-agreement comparison catches inconsistencies.
+- **NDA review** — Quick turnaround. Agent flags non-mutual clauses and overbroad non-competes, you generate the markup in one pass.
+- **Employment / consulting agreements** — Review IP assignment, non-compete scope, termination provisions. Generate internal memo with walkaway positions before the negotiation call.
 
 ## Output Examples
 
@@ -217,9 +225,7 @@ Redline text fields (`old`, `text`, `anchor`) must match text in the document. T
 
 ## Companion: AI Contract Review Skill
 
-This tool pairs with [**claude-legal-skill**](https://github.com/evolsb/claude-legal-skill) — an open-source AI agent skill for contract review that covers NDAs, SaaS agreements, M&A documents, and payment/merchant agreements. The skill handles the analysis (risk detection, market benchmarks, position-aware review); this tool handles the output.
-
-You can also use legal-redline-tools with any AI agent or manual workflow — just produce the JSON format above.
+[**claude-legal-skill**](https://github.com/evolsb/claude-legal-skill) handles the review side — risk detection, market benchmarks, position-aware analysis for NDAs, SaaS agreements, M&A documents, and payment/merchant agreements. This tool handles the output. Together they cover the full workflow from contract upload to signed redline delivery.
 
 To use the included redline-generation skill with Claude Code:
 
