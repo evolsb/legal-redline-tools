@@ -36,5 +36,11 @@ Issues = "https://github.com/evolsb/legal-redline-tools/issues"
 [project.scripts]
 legal-redline = "legal_redline.cli:main"
 
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.setuptools.packages.find]
 include = ["legal_redline*"]

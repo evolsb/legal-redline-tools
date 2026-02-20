@@ -344,17 +344,13 @@ def render_redline_pdf(docx_path, redlines, pdf_path, header_text=None,
     total_paras = len(doc.paragraphs)
 
     # Build ordered list of body elements (paragraphs and tables)
+    para_by_elem = {p._element: p for p in doc.paragraphs}
     body = doc.element.body
     for child in body:
         tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
         if tag == "p":
-            # Find matching paragraph object
-            para = None
-            for p in doc.paragraphs:
-                if p._element is child:
-                    para = p
-                    break
+            para = para_by_elem.get(child)
             if para is None:
                 continue
 
