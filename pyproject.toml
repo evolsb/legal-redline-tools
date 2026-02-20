@@ -30,6 +30,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/evolsb/legal-redline-tools"
+Changelog = "https://github.com/evolsb/legal-redline-tools/blob/main/CHANGELOG.md"
 Issues = "https://github.com/evolsb/legal-redline-tools/issues"
 
 [project.scripts]

@@ -1,36 +1,46 @@
 # legal-redline-tools
 
-Apply tracked changes to Word documents and generate lawyer-style redline PDFs. Pure Python, JSON-driven, designed for AI agent pipelines.
+[![GitHub stars](https://img.shields.io/github/stars/evolsb/legal-redline-tools)](https://github.com/evolsb/legal-redline-tools/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue)](CHANGELOG.md)
+
+Apply tracked changes to Word documents and generate lawyer-style redline PDFs. Pure Python, JSON-driven, built for AI contract review pipelines.
 
 ## The Problem
 
-Every AI contract review tool can *analyze* contracts, but none can produce the actual tracked-changes `.docx` or visual redline PDF that lawyers need. python-docx has [refused to add tracked changes for 9 years](https://github.com/python-openxml/python-docx/issues/340). This tool fills that gap.
+Every AI contract review tool can *analyze* contracts, but none produce the actual tracked-changes `.docx` or visual redline PDF that lawyers need. python-docx has [refused to add tracked changes for 9 years](https://github.com/python-openxml/python-docx/issues/340). Legal teams still email marked-up Word files back and forth. AI tools that can't produce those artifacts are stuck behind a manual copy-paste wall.
+
+This tool bridges that gap: give it a `.docx` and a list of changes (as JSON), and it produces every deliverable a legal workflow needs — tracked-changes Word files, full-document redline PDFs, negotiation memos, and structured markdown for AI pipeline chaining.
 
 ## What It Does
 
-Takes an original `.docx` and a list of text changes (as JSON), and produces:
-
-1. **Tracked-changes `.docx`** — Real Word tracked changes (strikethrough + insertion) that recipients can accept/reject
-2. **Full-document redline PDF** — The entire contract rendered with inline red strikethrough and blue underline, plus change bars and a summary page
-3. **Summary PDF** — A schedule of proposed changes (external mode for counterparty, internal mode with rationale)
-4. **Internal memo PDF** — Tier-grouped analysis with rationale, walkaway positions, and precedent citations
-5. **Markdown** — Structured output for PRs, documentation, or AI pipeline chaining
-6. **Document diff** — Compare two `.docx` files and generate redlines from differences
-7. **Section remapping** — Remap redline section references when switching document versions
-8. **Cross-agreement comparison** — Compare redline sets across multiple related agreements
-9. **Placeholder scanner** — Find blank fields, `$X`, `TBD`, and missing exhibit references
+| # | Capability | Description |
+|---|-----------|-------------|
+| 1 | **Tracked-changes `.docx`** | Real Word tracked changes (strikethrough + insertion) that recipients can accept/reject |
+| 2 | **Full-document redline PDF** | Entire contract with inline red strikethrough and blue underline, change bars, and summary page |
+| 3 | **Summary PDF** | Schedule of proposed changes (external mode for counterparty, internal mode with rationale) |
+| 4 | **Internal memo PDF** | Tier-grouped analysis with rationale, walkaway positions, and precedent citations |
+| 5 | **Markdown** | Structured output for PRs, documentation, or AI pipeline chaining |
+| 6 | **Document diff** | Compare two `.docx` files and auto-generate redlines from differences |
+| 7 | **Section remapping** | Remap redline section references when switching between document versions |
+| 8 | **Cross-agreement comparison** | Compare redline sets across multiple related agreements for consistency |
+| 9 | **Placeholder scanner** | Find blank fields, `$X`, `TBD`, and missing exhibit references |
 
 ## Install
 
-```bash
-pip install legal-redline-tools
-```
+From source (recommended):
 
-Or from source:
 ```bash
 git clone https://github.com/evolsb/legal-redline-tools.git
 cd legal-redline-tools
 pip install -e .
+```
+
+Or directly from GitHub:
+
+```bash
+pip install git+https://github.com/evolsb/legal-redline-tools.git
 ```
 
 ## Quick Start
@@ -38,7 +48,7 @@ pip install -e .
 ### CLI
 
 ```bash
-# Apply redlines and generate all outputs:
+# Apply redlines from JSON and generate all outputs
 legal-redline apply original.docx output.docx \
     --from-json redlines.json \
     --pdf full-redline.pdf \
@@ -47,23 +57,23 @@ legal-redline apply original.docx output.docx \
     --markdown redlines.md \
     --header "Proposed Redlines — Feb 2026"
 
-# Inline changes (no JSON file needed):
+# Inline changes (no JSON file needed)
 legal-redline apply original.docx output.docx \
     --replace "old text" "new text" \
     --delete "text to remove" \
     --insert-after "anchor text" "new text"
 
-# Compare two document versions:
+# Compare two document versions
 legal-redline diff original.docx revised.docx -o changes.json
 
-# Scan for blank fields and placeholders:
+# Scan for blank fields and placeholders
 legal-redline scan contract.docx
 
-# Remap section references to a new document:
+# Remap section references to a new document
 legal-redline remap old-agreement.docx new-agreement.docx \
     --redlines redlines.json -o remapped.json
 
-# Compare redlines across agreements:
+# Compare redlines across agreements
 legal-redline compare \
     --agreements msa=msa-redlines.json tri-party=triparty-redlines.json \
     -o comparison.md
@@ -99,17 +109,10 @@ render_redline_pdf("original.docx", redlines, "redline.pdf",
 
 # Summary PDF (external — clean, no rationale)
 generate_summary_pdf(redlines, "summary.pdf",
-                     doc_title="Merchant Agreement v3",
-                     mode="external")
-
-# Summary PDF (internal — includes rationale/walkaway/precedent)
-generate_summary_pdf(redlines, "summary-internal.pdf",
-                     doc_title="Merchant Agreement v3",
-                     mode="internal")
+                     doc_title="Merchant Agreement v3", mode="external")
 
 # Internal memo PDF (tier-grouped analysis)
-generate_memo_pdf(redlines, "memo.pdf",
-                  doc_title="Merchant Agreement v3")
+generate_memo_pdf(redlines, "memo.pdf", doc_title="Merchant Agreement v3")
 
 # Markdown output
 md = generate_markdown(redlines, doc_title="Agreement", mode="internal")
@@ -130,36 +133,7 @@ report = scan_document("contract.docx")
 
 ## JSON Format
 
-```json
-[
-    {
-        "type": "replace",
-        "old": "text to find and replace",
-        "new": "replacement text",
-        "section": "7.2",
-        "title": "Liability Cap",
-        "tier": 1,
-        "rationale": "Below market standard",
-        "walkaway": "Accept 50% if pushed",
-        "precedent": "Industry standard is 100% of fees"
-    },
-    {
-        "type": "delete",
-        "text": "text to remove"
-    },
-    {
-        "type": "insert_after",
-        "anchor": "text to insert after",
-        "text": "new text to add"
-    },
-    {
-        "type": "add_section",
-        "after_section": "Section 12",
-        "text": "New section content",
-        "new_section_number": "12A"
-    }
-]
-```
+Redlines are a JSON array. Each entry has a `type` and type-specific fields, plus optional metadata.
 
 ### Redline Types
 
@@ -181,6 +155,50 @@ report = scan_document("contract.docx")
 | `walkaway` | Internal only | Fall-back position |
 | `precedent` | Internal only | Market standard reference |
 
+### Example
+
+```json
+[
+    {
+        "type": "replace",
+        "old": "SHALL BE LIMITED TO 20% OF FEES PAID",
+        "new": "SHALL BE LIMITED TO 100% OF FEES PAID, OR $250,000, WHICHEVER IS GREATER",
+        "section": "7.2",
+        "title": "Liability Cap",
+        "tier": 1,
+        "rationale": "20% is well below market standard (100% of trailing 12-month fees).",
+        "walkaway": "Accept 50% with $100K floor.",
+        "precedent": "Industry standard B2B SaaS is 100% of trailing 12-month fees."
+    },
+    {
+        "type": "delete",
+        "text": "shall be entitled to immediately terminate this Agreement without liability",
+        "section": "9.4",
+        "title": "Delete At-Will Termination",
+        "tier": 2,
+        "rationale": "Vague standard gives Company unilateral termination right."
+    },
+    {
+        "type": "insert_after",
+        "anchor": "This Agreement shall commence on the Effective Date",
+        "text": ". Either party may terminate for convenience upon 90 days' written notice",
+        "section": "9.1",
+        "title": "Mutual Termination Right",
+        "tier": 2,
+        "rationale": "Adding symmetrical termination rights."
+    },
+    {
+        "type": "add_section",
+        "after_section": "COMPANY PROVIDES THE SOFTWARE AND SERVICES",
+        "text": "Service Level Agreement. Company targets 99.9% monthly API uptime.",
+        "section": "NEW 11.X",
+        "title": "SLA with Credits",
+        "tier": 1,
+        "rationale": "No SLA means no recourse for outages."
+    }
+]
+```
+
 ## Output Modes
 
 ### External (counterparty-facing)
@@ -200,24 +218,33 @@ Full analysis with strategy context. Never send these to the counterparty.
 - Summary PDF (`mode="internal"`) — includes tier badges and strategy fields
 - Markdown (`mode="internal"`) — grouped by tier with all metadata
 
-## AI Skill
+## Text Matching
 
-The included `skill.md` provides a complete prompt for AI agents (Claude, GPT, Codex, etc.) to:
+Redline text fields (`old`, `text`, `anchor`, `after_section`) must match text in the document. The matching engine handles common mismatches automatically:
 
-1. Analyze a contract
+- **Smart quotes** — `\u2018`/`\u2019` (curly single) and `\u201C`/`\u201D` (curly double) are normalized to straight quotes
+- **Whitespace** — Tabs, double spaces, and other whitespace variations (common in PDF-to-docx conversions) are collapsed
+- **Dashes** — En-dashes and em-dashes are treated as hyphens
+- **Cross-run matching** — Text split across bold/italic/formatting runs is matched as plain text
+
+Copy text directly from the document when possible. The normalizer handles the rest.
+
+## AI Agent Skill
+
+The included [`skill.md`](skill.md) is a prompt for AI agents (Claude, GPT, Codex) that instructs them to:
+
+1. Read and analyze a contract
 2. Identify problematic provisions with tier classification
-3. Generate the redlines JSON
-4. Produce all output formats
+3. Generate the redlines JSON with rationale and walkaway positions
+4. Produce all output deliverables
 
-Copy `skill.md` into your AI agent's skill/tool directory.
+To use with Claude Code, copy `skill.md` to your skills directory:
 
-## Requirements
-
-- Python 3.9+
-- python-docx
-- lxml
-- fpdf2
+```bash
+mkdir -p ~/.claude/skills/contract-redline
+cp skill.md ~/.claude/skills/contract-redline/skill.md
+```
 
 ## License
 
-MIT
+[MIT](LICENSE)
