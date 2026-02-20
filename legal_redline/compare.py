@@ -4,7 +4,6 @@ Compares redline sets across multiple related agreements to flag
 inconsistencies in provisions that should be aligned.
 """
 
-import json
 from difflib import SequenceMatcher
 
 

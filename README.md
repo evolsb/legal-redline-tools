@@ -5,31 +5,76 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-0.2.0-blue)](CHANGELOG.md)
 
-Apply tracked changes to Word documents and generate lawyer-style redline PDFs. Pure Python, JSON-driven, built for AI contract review pipelines.
+**AI agents can review contracts. This tool produces the tracked-changes Word docs and redline PDFs that lawyers actually send.**
+
+Review a contract with an AI agent. Iterate in chat. Then generate every deliverable a legal negotiation needs — tracked-changes `.docx`, full-document redline PDFs, internal negotiation memos, and structured markdown — all from a simple JSON spec.
 
 ## The Problem
 
-Every AI contract review tool can *analyze* contracts, but none produce the actual tracked-changes `.docx` or visual redline PDF that lawyers need. python-docx has [refused to add tracked changes for 9 years](https://github.com/python-openxml/python-docx/issues/340). Legal teams still email marked-up Word files back and forth. AI tools that can't produce those artifacts are stuck behind a manual copy-paste wall.
+AI contract review is everywhere now. But every tool stops at *analysis* — a list of issues in a chat window. The lawyer on the other side doesn't want your AI's opinion. They want a marked-up Word file with tracked changes they can accept or reject, and a redline PDF they can print and read.
 
-This tool bridges that gap: give it a `.docx` and a list of changes (as JSON), and it produces every deliverable a legal workflow needs — tracked-changes Word files, full-document redline PDFs, negotiation memos, and structured markdown for AI pipeline chaining.
+python-docx has [refused to add tracked changes for 9 years](https://github.com/python-openxml/python-docx/issues/340). So AI tools are stuck behind a manual copy-paste wall: the agent finds the issues, then a human spends an hour transcribing them into Word's track changes by hand.
 
-## What It Does
+**This tool eliminates that wall.** Give it a `.docx` and a list of changes as JSON, and it produces everything — from the tracked-changes Word file your counterparty will review, to the internal negotiation memo your team will use to prepare.
 
-| # | Capability | Description |
-|---|-----------|-------------|
+## How It Works
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
+│  AI Agent        │     │  legal-redline    │     │  Deliverables       │
+│  reviews         │────▶│  -tools           │────▶│                     │
+│  contract        │     │                   │     │  ✓ Tracked .docx    │
+│                  │     │  JSON redlines    │     │  ✓ Redline PDF      │
+│  (claude-legal   │     │  as input         │     │  ✓ Summary PDF      │
+│   -skill or any  │     │                   │     │  ✓ Negotiation memo │
+│   review agent)  │     │                   │     │  ✓ Markdown         │
+└─────────────────┘     └──────────────────┘     └─────────────────────┘
+```
+
+1. **Review** — An AI agent (like [claude-legal-skill](https://github.com/evolsb/claude-legal-skill)) analyzes the contract, identifies issues, and classifies them by tier
+2. **Iterate** — You discuss findings in chat, adjust positions, add walkaway thresholds
+3. **Generate** — The agent outputs a JSON array of redlines, and this tool produces all deliverables
+4. **Send** — External files go to the counterparty. Internal memo stays with your team.
+
+## Output Examples
+
+<table>
+<tr>
+<td align="center"><strong>Full-Document Redline PDF</strong></td>
+<td align="center"><strong>Summary of Changes</strong></td>
+<td align="center"><strong>Internal Negotiation Memo</strong></td>
+</tr>
+<tr>
+<td><img src="assets/redline-pdf.png" width="280" alt="Full-document redline PDF with inline strikethrough and change bars"></td>
+<td><img src="assets/summary-pdf.png" width="280" alt="Summary PDF showing proposed changes"></td>
+<td><img src="assets/memo-pdf.png" width="280" alt="Internal memo with tier-grouped analysis"></td>
+</tr>
+<tr>
+<td>Entire contract with inline red strikethrough, blue underline, and change bars</td>
+<td>Clean schedule of proposed changes for the counterparty</td>
+<td>Tier-grouped analysis with rationale, walkaway positions, and precedent</td>
+</tr>
+</table>
+
+Plus: **tracked-changes `.docx`** (real Word accept/reject) and **structured markdown** for AI pipeline chaining.
+
+## Capabilities
+
+| # | Feature | Description |
+|---|---------|-------------|
 | 1 | **Tracked-changes `.docx`** | Real Word tracked changes (strikethrough + insertion) that recipients can accept/reject |
-| 2 | **Full-document redline PDF** | Entire contract with inline red strikethrough and blue underline, change bars, and summary page |
-| 3 | **Summary PDF** | Schedule of proposed changes (external mode for counterparty, internal mode with rationale) |
-| 4 | **Internal memo PDF** | Tier-grouped analysis with rationale, walkaway positions, and precedent citations |
+| 2 | **Full-document redline PDF** | Entire contract with inline markups, change bars, and summary page |
+| 3 | **Summary PDF** | Schedule of proposed changes (external for counterparty, internal with rationale) |
+| 4 | **Internal memo PDF** | Tier-grouped analysis with rationale, walkaway positions, and precedent |
 | 5 | **Markdown** | Structured output for PRs, documentation, or AI pipeline chaining |
 | 6 | **Document diff** | Compare two `.docx` files and auto-generate redlines from differences |
-| 7 | **Section remapping** | Remap redline section references when switching between document versions |
-| 8 | **Cross-agreement comparison** | Compare redline sets across multiple related agreements for consistency |
+| 7 | **Section remapping** | Remap redline section references when switching document versions |
+| 8 | **Cross-agreement comparison** | Compare redline sets across related agreements for consistency |
 | 9 | **Placeholder scanner** | Find blank fields, `$X`, `TBD`, and missing exhibit references |
 
 ## Install
 
-From source (recommended):
+From source:
 
 ```bash
 git clone https://github.com/evolsb/legal-redline-tools.git
@@ -117,7 +162,7 @@ generate_memo_pdf(redlines, "memo.pdf", doc_title="Merchant Agreement v3")
 # Markdown output
 md = generate_markdown(redlines, doc_title="Agreement", mode="internal")
 
-# Diff two documents
+# Diff two documents → redlines JSON
 changes = diff_documents("v1.docx", "v2.docx")
 
 # Remap sections between document versions
@@ -133,7 +178,7 @@ report = scan_document("contract.docx")
 
 ## JSON Format
 
-Redlines are a JSON array. Each entry has a `type` and type-specific fields, plus optional metadata.
+Redlines are a JSON array. Each entry has a `type` and type-specific fields, plus optional metadata for internal analysis.
 
 ### Redline Types
 
@@ -155,90 +200,30 @@ Redlines are a JSON array. Each entry has a `type` and type-specific fields, plu
 | `walkaway` | Internal only | Fall-back position |
 | `precedent` | Internal only | Market standard reference |
 
-### Example
-
-```json
-[
-    {
-        "type": "replace",
-        "old": "SHALL BE LIMITED TO 20% OF FEES PAID",
-        "new": "SHALL BE LIMITED TO 100% OF FEES PAID, OR $250,000, WHICHEVER IS GREATER",
-        "section": "7.2",
-        "title": "Liability Cap",
-        "tier": 1,
-        "rationale": "20% is well below market standard (100% of trailing 12-month fees).",
-        "walkaway": "Accept 50% with $100K floor.",
-        "precedent": "Industry standard B2B SaaS is 100% of trailing 12-month fees."
-    },
-    {
-        "type": "delete",
-        "text": "shall be entitled to immediately terminate this Agreement without liability",
-        "section": "9.4",
-        "title": "Delete At-Will Termination",
-        "tier": 2,
-        "rationale": "Vague standard gives Company unilateral termination right."
-    },
-    {
-        "type": "insert_after",
-        "anchor": "This Agreement shall commence on the Effective Date",
-        "text": ". Either party may terminate for convenience upon 90 days' written notice",
-        "section": "9.1",
-        "title": "Mutual Termination Right",
-        "tier": 2,
-        "rationale": "Adding symmetrical termination rights."
-    },
-    {
-        "type": "add_section",
-        "after_section": "COMPANY PROVIDES THE SOFTWARE AND SERVICES",
-        "text": "Service Level Agreement. Company targets 99.9% monthly API uptime.",
-        "section": "NEW 11.X",
-        "title": "SLA with Credits",
-        "tier": 1,
-        "rationale": "No SLA means no recourse for outages."
-    }
-]
-```
+See [`examples/sample-redlines.json`](examples/sample-redlines.json) for a complete example with all 4 types.
 
 ## Output Modes
 
-### External (counterparty-facing)
+**External** (counterparty-facing) — Clean outputs with only the proposed changes. No rationale, tiers, or walkaway positions. This is what you send to the other side.
 
-Clean outputs showing only the proposed changes — no rationale, tiers, or walkaway positions. This is what you send to the other side.
-
-- Tracked-changes `.docx`
-- Full-document redline PDF
-- Summary PDF (`mode="external"`)
-- Markdown (`mode="external"`)
-
-### Internal (team-facing)
-
-Full analysis with strategy context. Never send these to the counterparty.
-
-- Internal memo PDF — tier-grouped with rationale, walkaway, precedent
-- Summary PDF (`mode="internal"`) — includes tier badges and strategy fields
-- Markdown (`mode="internal"`) — grouped by tier with all metadata
+**Internal** (team-facing) — Full analysis with strategy context. Tier-grouped memos with rationale, walkaway positions, and precedent citations. Never send these to the counterparty.
 
 ## Text Matching
 
-Redline text fields (`old`, `text`, `anchor`, `after_section`) must match text in the document. The matching engine handles common mismatches automatically:
+Redline text fields (`old`, `text`, `anchor`) must match text in the document. The matching engine handles common mismatches automatically:
 
-- **Smart quotes** — `\u2018`/`\u2019` (curly single) and `\u201C`/`\u201D` (curly double) are normalized to straight quotes
-- **Whitespace** — Tabs, double spaces, and other whitespace variations (common in PDF-to-docx conversions) are collapsed
-- **Dashes** — En-dashes and em-dashes are treated as hyphens
-- **Cross-run matching** — Text split across bold/italic/formatting runs is matched as plain text
+- **Smart quotes** — Curly quotes normalized to straight quotes
+- **Whitespace** — Tabs, double spaces, and PDF conversion artifacts collapsed
+- **Dashes** — En-dashes and em-dashes treated as hyphens
+- **Cross-run** — Text split across bold/italic formatting runs matched as plain text
 
-Copy text directly from the document when possible. The normalizer handles the rest.
+## Companion: AI Contract Review Skill
 
-## AI Agent Skill
+This tool pairs with [**claude-legal-skill**](https://github.com/evolsb/claude-legal-skill) — an open-source AI agent skill for contract review that covers NDAs, SaaS agreements, M&A documents, and payment/merchant agreements. The skill handles the analysis (risk detection, market benchmarks, position-aware review); this tool handles the output.
 
-The included [`skill.md`](skill.md) is a prompt for AI agents (Claude, GPT, Codex) that instructs them to:
+You can also use legal-redline-tools with any AI agent or manual workflow — just produce the JSON format above.
 
-1. Read and analyze a contract
-2. Identify problematic provisions with tier classification
-3. Generate the redlines JSON with rationale and walkaway positions
-4. Produce all output deliverables
-
-To use with Claude Code, copy `skill.md` to your skills directory:
+To use the included redline-generation skill with Claude Code:
 
 ```bash
 mkdir -p ~/.claude/skills/contract-redline
