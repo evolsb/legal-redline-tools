@@ -316,13 +316,29 @@ def apply_tracked_add_section(doc, after_section, new_text, author, date_str,
     parent = target_para._element.getparent()
     target_idx = list(parent).index(target_para._element)
 
-    # Create new paragraph element
+    # Create new paragraph element with formatting from target paragraph
     new_para = OxmlElement("w:p")
+    target_pPr = target_para._element.find(qn("w:pPr"))
+    if target_pPr is not None:
+        import copy as _copy
+        new_pPr = _copy.deepcopy(target_pPr)
+        # Remove numbering properties to avoid wrong auto-numbering
+        for numPr in new_pPr.findall(qn("w:numPr")):
+            new_pPr.remove(numPr)
+        new_para.append(new_pPr)
+
     ins = OxmlElement("w:ins")
     ins.set(qn("w:id"), next_rev_id())
     ins.set(qn("w:author"), author)
     ins.set(qn("w:date"), date_str)
     r = OxmlElement("w:r")
+    # Copy run properties (font, size) from target paragraph's first run
+    target_runs = target_para._element.findall(qn("w:r"))
+    if target_runs:
+        target_rPr = target_runs[0].find(qn("w:rPr"))
+        if target_rPr is not None:
+            import copy as _copy
+            r.append(_copy.deepcopy(target_rPr))
     t = OxmlElement("w:t")
     t.set(qn("xml:space"), "preserve")
     t.text = insert_text
