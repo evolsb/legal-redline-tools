@@ -334,7 +334,7 @@ def apply_tracked_add_section(doc, after_section, new_text, author, date_str,
     return True
 
 
-def apply_redlines(input_path, output_path, redlines, author="Chris Sheehan"):
+def apply_redlines(input_path, output_path, redlines, author="Reviewer"):
     """
     Apply a list of redlines to a .docx file.
 
@@ -354,41 +354,52 @@ def apply_redlines(input_path, output_path, redlines, author="Chris Sheehan"):
 
     results = []
     for i, redline in enumerate(redlines):
-        rtype = redline["type"]
-        success = False
+        rtype = redline.get("type")
+        if rtype is None:
+            results.append(("ERROR", f"Redline {i}: missing 'type' field"))
+            print(f"  [ERROR] Redline {i}: missing 'type' field")
+            continue
 
-        if rtype == "replace":
-            old = redline["old"]
-            new = redline["new"]
-            success = apply_tracked_replacement(doc, old, new, author, date_str)
-            desc = f"Replace: '{old[:50]}...' -> '{new[:50]}...'"
+        try:
+            success = False
 
-        elif rtype == "delete":
-            text = redline["text"]
-            success = apply_tracked_deletion(doc, text, author, date_str)
-            desc = f"Delete: '{text[:60]}...'"
+            if rtype == "replace":
+                old = redline["old"]
+                new = redline["new"]
+                success = apply_tracked_replacement(doc, old, new, author, date_str)
+                desc = f"Replace: '{old[:50]}...' -> '{new[:50]}...'"
 
-        elif rtype == "insert_after":
-            anchor = redline["anchor"]
-            text = redline["text"]
-            success = apply_tracked_insertion(doc, anchor, text, author, date_str)
-            desc = f"Insert after: '{anchor[:40]}...'"
+            elif rtype == "delete":
+                text = redline["text"]
+                success = apply_tracked_deletion(doc, text, author, date_str)
+                desc = f"Delete: '{text[:60]}...'"
 
-        elif rtype == "add_section":
-            after_sec = redline.get("after_section", "")
-            text = redline["text"]
-            new_sec = redline.get("new_section_number")
-            success = apply_tracked_add_section(
-                doc, after_sec, text, author, date_str, new_sec
-            )
-            desc = f"Add section: '{new_sec or 'new'}' after '{after_sec}'"
+            elif rtype == "insert_after":
+                anchor = redline["anchor"]
+                text = redline["text"]
+                success = apply_tracked_insertion(doc, anchor, text, author, date_str)
+                desc = f"Insert after: '{anchor[:40]}...'"
 
-        else:
-            desc = f"Unknown type: {rtype}"
+            elif rtype == "add_section":
+                after_sec = redline.get("after_section", "")
+                text = redline["text"]
+                new_sec = redline.get("new_section_number")
+                success = apply_tracked_add_section(
+                    doc, after_sec, text, author, date_str, new_sec
+                )
+                desc = f"Add section: '{new_sec or 'new'}' after '{after_sec}'"
 
-        status = "OK" if success else "NOT FOUND"
-        results.append((status, desc))
-        print(f"  [{status}] {desc}")
+            else:
+                desc = f"Unknown type: {rtype}"
+
+            status = "OK" if success else "NOT FOUND"
+            results.append((status, desc))
+            print(f"  [{status}] {desc}")
+
+        except KeyError as e:
+            desc = f"Redline {i} ({rtype}): missing required field {e}"
+            results.append(("ERROR", desc))
+            print(f"  [ERROR] {desc}")
 
     doc.save(output_path)
     print(f"\nSaved: {output_path}")

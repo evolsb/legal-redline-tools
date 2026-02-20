@@ -5,7 +5,7 @@ but needs to target Document B (e.g., tri-party), this module fuzzy-matches
 the redline text against the new document and updates section references.
 """
 
-import json
+import copy
 import re
 from difflib import SequenceMatcher
 
@@ -91,6 +91,7 @@ def remap_redlines(old_docx_path, new_docx_path, redlines, threshold=0.6):
         Tuple of (updated_redlines, report) where report is a list of
         mapping results for each redline.
     """
+    redlines = copy.deepcopy(redlines)
     new_paras = _get_paragraphs(new_docx_path)
     report = []
 

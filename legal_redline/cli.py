@@ -85,7 +85,7 @@ def _add_apply_args(parser):
     parser.add_argument("input", help="Input .docx file")
     parser.add_argument("output", nargs="?",
                         help="Output .docx file with tracked changes")
-    parser.add_argument("--author", default="Chris Sheehan",
+    parser.add_argument("--author", default="Reviewer",
                         help="Author name for tracked changes")
 
     # Redline specifications
