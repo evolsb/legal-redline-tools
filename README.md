@@ -5,9 +5,9 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-0.2.0-blue)](CHANGELOG.md)
 
-**AI agents can review contracts. This tool produces the tracked-changes Word docs and redline PDFs that lawyers actually send.**
+**Generate tracked-changes Word docs and redline PDFs from a contract review — the same deliverables lawyers actually send.**
 
-Review a contract with an AI agent. Iterate in chat. Then generate every deliverable a legal negotiation needs — tracked-changes `.docx`, full-document redline PDFs, internal negotiation memos, and structured markdown — all from a simple JSON spec.
+Define your proposed changes as JSON. Get a tracked-changes `.docx` with real accept/reject markup, full-document redline PDFs, internal negotiation memos, and structured markdown. Works with any AI contract review agent or manual workflow.
 
 ## The Problem
 
@@ -19,20 +19,18 @@ python-docx has [refused to add tracked changes for 9 years](https://github.com/
 
 ## How It Works
 
-```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────────┐
-│  AI Agent        │     │  legal-redline    │     │  Deliverables       │
-│  reviews         │────▶│  -tools           │────▶│                     │
-│  contract        │     │                   │     │  ✓ Tracked .docx    │
-│                  │     │  JSON redlines    │     │  ✓ Redline PDF      │
-│  (claude-legal   │     │  as input         │     │  ✓ Summary PDF      │
-│   -skill or any  │     │                   │     │  ✓ Negotiation memo │
-│   review agent)  │     │                   │     │  ✓ Markdown         │
-└─────────────────┘     └──────────────────┘     └─────────────────────┘
+```mermaid
+flowchart LR
+    A["<b>AI Agent</b><br/>reviews contract<br/><i>(claude-legal-skill<br/>or any review agent)</i>"] -->|JSON redlines| B["<b>legal-redline-tools</b>"]
+    B --> C["Tracked-changes .docx"]
+    B --> D["Full-document redline PDF"]
+    B --> E["Summary PDF"]
+    B --> F["Internal negotiation memo"]
+    B --> G["Structured markdown"]
 ```
 
 1. **Review** — An AI agent (like [claude-legal-skill](https://github.com/evolsb/claude-legal-skill)) analyzes the contract, identifies issues, and classifies them by tier
-2. **Iterate** — You discuss findings in chat, adjust positions, add walkaway thresholds
+2. **Iterate** — Discuss findings in chat, adjust positions, add walkaway thresholds
 3. **Generate** — The agent outputs a JSON array of redlines, and this tool produces all deliverables
 4. **Send** — External files go to the counterparty. Internal memo stays with your team.
 
