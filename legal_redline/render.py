@@ -17,6 +17,8 @@ from datetime import datetime
 from docx import Document
 from fpdf import FPDF
 
+from legal_redline.apply import _normalize_text
+
 
 # ── Colors ──
 
@@ -113,10 +115,51 @@ def _is_bold_paragraph(para):
     return all(run.bold for run in para.runs if run.text and run.text.strip())
 
 
+def _normalized_find(haystack, needle):
+    """Find needle in haystack with smart quote/whitespace normalization fallback.
+
+    Returns (pos, matched_len) in the original haystack, or (-1, 0) if not found.
+    """
+    pos = haystack.find(needle)
+    if pos >= 0:
+        return pos, len(needle)
+
+    norm_hay = _normalize_text(haystack)
+    norm_ndl = _normalize_text(needle)
+    norm_pos = norm_hay.find(norm_ndl)
+    if norm_pos < 0:
+        return -1, 0
+
+    # Map normalized position back to original
+    orig_idx = 0
+    norm_idx = 0
+    while norm_idx < norm_pos and orig_idx < len(haystack):
+        if haystack[orig_idx].isspace():
+            while orig_idx + 1 < len(haystack) and haystack[orig_idx + 1].isspace():
+                orig_idx += 1
+        orig_idx += 1
+        norm_idx += 1
+
+    # Find span length in original
+    span = 0
+    span_norm = 0
+    while span_norm < len(norm_ndl) and orig_idx + span < len(haystack):
+        span += 1
+        if haystack[orig_idx + span - 1].isspace():
+            while orig_idx + span < len(haystack) and haystack[orig_idx + span].isspace():
+                span += 1
+        span_norm += 1
+
+    return orig_idx, span
+
+
 def _build_redline_segments(full_text, redlines):
     """
     Given a paragraph's full text and the list of redlines, identify which
     redlines apply and build a list of segments for rendering.
+
+    Uses normalized matching to handle smart quotes and whitespace differences
+    from PDF-to-docx conversions.
 
     Returns list of dicts:
         {"text": str, "type": "normal"|"deleted"|"inserted"}
@@ -128,17 +171,17 @@ def _build_redline_segments(full_text, redlines):
     for idx, rl in enumerate(redlines):
         rtype = rl["type"]
         if rtype == "replace":
-            pos = full_text.find(rl["old"])
+            pos, matched_len = _normalized_find(full_text, rl["old"])
             if pos >= 0:
-                matches.append((pos, pos + len(rl["old"]), idx, rtype))
+                matches.append((pos, pos + matched_len, idx, rtype))
         elif rtype == "delete":
-            pos = full_text.find(rl["text"])
+            pos, matched_len = _normalized_find(full_text, rl["text"])
             if pos >= 0:
-                matches.append((pos, pos + len(rl["text"]), idx, rtype))
+                matches.append((pos, pos + matched_len, idx, rtype))
         elif rtype == "insert_after":
-            pos = full_text.find(rl["anchor"])
+            pos, matched_len = _normalized_find(full_text, rl["anchor"])
             if pos >= 0:
-                end = pos + len(rl["anchor"])
+                end = pos + matched_len
                 matches.append((end, end, idx, rtype))  # zero-width match at insertion point
         elif rtype == "add_section":
             # add_section creates new paragraphs — handled separately in rendering

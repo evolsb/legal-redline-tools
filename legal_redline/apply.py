@@ -1,7 +1,7 @@
 """Apply tracked changes (redlines) to Word documents via OOXML manipulation."""
 
 import copy
-import json
+import re
 from datetime import datetime, timezone
 
 from docx import Document
@@ -73,10 +73,34 @@ def _get_full_paragraph_text(para):
     return "".join(run.text or "" for run in para.runs)
 
 
+def _normalize_text(text):
+    """Normalize text for fuzzy matching.
+
+    Handles common mismatches between JSON input and document content:
+    - Smart quotes vs straight quotes (common in legal docs and PDF conversions)
+    - Multiple whitespace characters (tabs, double spaces from PDF line breaks)
+    - En/em dashes vs hyphens
+    """
+    text = text.replace('\u2018', "'").replace('\u2019', "'")  # smart single quotes
+    text = text.replace('\u201C', '"').replace('\u201D', '"')  # smart double quotes
+    text = text.replace('\u2013', '-').replace('\u2014', '-')  # en/em dashes
+    return re.sub(r'\s+', ' ', text)
+
+
 def _find_text_across_runs(para, search_text):
     """
     Find search_text across potentially split runs.
-    Returns (start_run_idx, start_offset, end_run_idx, end_offset) or None.
+
+    Uses a two-pass strategy:
+    1. Exact substring match (fast path)
+    2. Normalized match (handles smart quotes, extra whitespace from PDF conversion)
+
+    When the normalized path matches, maps positions back to the original text
+    so the correct character ranges are used for run splitting.
+
+    Returns (start_run_idx, start_offset, end_run_idx, end_offset, matched_text)
+    or None. matched_text is the actual document text that was matched (may differ
+    from search_text in whitespace/quote characters).
     """
     runs = para.runs
     if not runs:
@@ -87,29 +111,79 @@ def _find_text_across_runs(para, search_text):
         for j in range(len(run.text or "")):
             char_map.append((i, j))
 
+    if not char_map:
+        return None
+
     full_text = _get_full_paragraph_text(para)
+    matched_text = search_text
+
+    # Try exact match first
     pos = full_text.find(search_text)
+
+    # Fall back to normalized match (smart quotes, whitespace differences)
+    if pos < 0:
+        norm_full = _normalize_text(full_text)
+        norm_search = _normalize_text(search_text)
+        norm_pos = norm_full.find(norm_search)
+        if norm_pos < 0:
+            return None
+
+        # Map normalized position back to original text position.
+        # Walk both strings in parallel: the normalized string advances one char
+        # at a time, while the original may have extra whitespace chars to skip.
+        orig_idx = 0
+        norm_idx = 0
+        while norm_idx < norm_pos and orig_idx < len(full_text):
+            if full_text[orig_idx].isspace():
+                while orig_idx + 1 < len(full_text) and full_text[orig_idx + 1].isspace():
+                    orig_idx += 1
+            orig_idx += 1
+            norm_idx += 1
+        pos = orig_idx
+
+        # Find the span length in original text that corresponds to norm_search
+        search_len = 0
+        search_norm_len = 0
+        while search_norm_len < len(norm_search) and pos + search_len < len(full_text):
+            search_len += 1
+            if full_text[pos + search_len - 1].isspace():
+                while pos + search_len < len(full_text) and full_text[pos + search_len].isspace():
+                    search_len += 1
+            search_norm_len += 1
+
+        # Use the actual document text for the matched span
+        matched_text = full_text[pos:pos + search_len]
+
     if pos < 0:
         return None
 
     start_run_idx, start_offset = char_map[pos]
-    end_pos = pos + len(search_text) - 1
+    end_pos = pos + len(matched_text) - 1
+    if end_pos >= len(char_map):
+        return None
     end_run_idx, end_offset = char_map[end_pos]
-    return (start_run_idx, start_offset, end_run_idx, end_offset)
+    return (start_run_idx, start_offset, end_run_idx, end_offset, matched_text)
+
+
+def _contains_normalized(full_text, search_text):
+    """Check if search_text is in full_text, with whitespace-normalized fallback."""
+    if search_text in full_text:
+        return True
+    return _normalize_text(search_text) in _normalize_text(full_text)
 
 
 def apply_tracked_replacement(doc, search_text, replacement_text, author, date_str):
     """Replace search_text with replacement_text as tracked changes."""
     for para in doc.paragraphs:
         full_text = _get_full_paragraph_text(para)
-        if search_text not in full_text:
+        if not _contains_normalized(full_text, search_text):
             continue
 
         result = _find_text_across_runs(para, search_text)
         if result is None:
             continue
 
-        start_run_idx, start_offset, end_run_idx, end_offset = result
+        start_run_idx, start_offset, end_run_idx, end_offset, matched_text = result
         runs = para.runs
         parent = para._element
 
@@ -130,7 +204,7 @@ def apply_tracked_replacement(doc, search_text, replacement_text, author, date_s
         new_elements = []
         if leading_text:
             new_elements.append(_make_trailing_run(leading_text, first_rpr))
-        new_elements.append(_make_del(search_text, author, date_str, first_rpr))
+        new_elements.append(_make_del(matched_text, author, date_str, first_rpr))
         new_elements.append(_make_ins(replacement_text, author, date_str, first_rpr))
         if trailing_text:
             new_elements.append(_make_trailing_run(trailing_text, first_rpr))
@@ -146,14 +220,14 @@ def apply_tracked_deletion(doc, delete_text, author, date_str):
     """Delete text as a tracked deletion."""
     for para in doc.paragraphs:
         full_text = _get_full_paragraph_text(para)
-        if delete_text not in full_text:
+        if not _contains_normalized(full_text, delete_text):
             continue
 
         result = _find_text_across_runs(para, delete_text)
         if result is None:
             continue
 
-        start_run_idx, start_offset, end_run_idx, end_offset = result
+        start_run_idx, start_offset, end_run_idx, end_offset, matched_text = result
         runs = para.runs
         parent = para._element
 
@@ -173,7 +247,7 @@ def apply_tracked_deletion(doc, delete_text, author, date_str):
         new_elements = []
         if leading_text:
             new_elements.append(_make_trailing_run(leading_text, first_rpr))
-        new_elements.append(_make_del(delete_text, author, date_str, first_rpr))
+        new_elements.append(_make_del(matched_text, author, date_str, first_rpr))
         if trailing_text:
             new_elements.append(_make_trailing_run(trailing_text, first_rpr))
 
@@ -188,14 +262,14 @@ def apply_tracked_insertion(doc, after_text, new_text, author, date_str):
     """Insert new text after anchor text as a tracked insertion."""
     for para in doc.paragraphs:
         full_text = _get_full_paragraph_text(para)
-        if after_text not in full_text:
+        if not _contains_normalized(full_text, after_text):
             continue
 
         result = _find_text_across_runs(para, after_text)
         if result is None:
             continue
 
-        _, _, end_run_idx, end_offset = result
+        _, _, end_run_idx, end_offset, _ = result
         runs = para.runs
         parent = para._element
 
@@ -226,8 +300,7 @@ def apply_tracked_add_section(doc, after_section, new_text, author, date_str,
     target_para = None
     for para in doc.paragraphs:
         full_text = _get_full_paragraph_text(para)
-        # Match "Section X.Y" or just the number at the start of a paragraph
-        if after_section in full_text:
+        if _contains_normalized(full_text, after_section):
             target_para = para
 
     if target_para is None:
