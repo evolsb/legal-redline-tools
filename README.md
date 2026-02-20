@@ -223,9 +223,29 @@ Redline text fields (`old`, `text`, `anchor`) must match text in the document. T
 - **Dashes** — En-dashes and em-dashes treated as hyphens
 - **Cross-run** — Text split across bold/italic formatting runs matched as plain text
 
-## Companion: AI Contract Review Skill
+## End-to-End Workflow with claude-legal-skill
 
-[**claude-legal-skill**](https://github.com/evolsb/claude-legal-skill) handles the review side — risk detection, market benchmarks, position-aware analysis for NDAs, SaaS agreements, M&A documents, and payment/merchant agreements. This tool handles the output. Together they cover the full workflow from contract upload to signed redline delivery.
+[**claude-legal-skill**](https://github.com/evolsb/claude-legal-skill) handles the review side — risk detection, market benchmarks, position-aware analysis. This tool handles the output. Together:
+
+```bash
+# 1. Install the review skill
+git clone https://github.com/evolsb/claude-legal-skill ~/.claude/skills/contract-review
+
+# 2. Install this tool
+pip install git+https://github.com/evolsb/legal-redline-tools.git
+
+# 3. Review a contract (skill analyzes and outputs JSON redlines)
+#    "Review this MSA - I'm the vendor"
+
+# 4. Generate all deliverables from the redlines
+legal-redline apply original.docx redlined.docx \
+    --from-json redlines.json \
+    --pdf full-redline.pdf \
+    --summary-pdf summary.pdf \
+    --memo-pdf internal-memo.pdf
+```
+
+Or use this tool standalone — it works with any AI agent or manual workflow. Just produce the [JSON format](#json-format) above.
 
 To use the included redline-generation skill with Claude Code:
 
@@ -233,6 +253,25 @@ To use the included redline-generation skill with Claude Code:
 mkdir -p ~/.claude/skills/contract-redline
 cp skill.md ~/.claude/skills/contract-redline/skill.md
 ```
+
+## Limitations
+
+- **Text matching** — Redline anchors must match document text; heavily reformatted or PDF-converted documents may need manual text cleanup
+- **Complex formatting** — Tables, images, and nested lists are preserved but not targeted by redlines
+- **Character support** — PDF outputs use Latin-1 encoding; non-Latin scripts (Cyrillic, CJK, Polish diacritics) may render as `?` in PDFs (`.docx` output is unaffected)
+- **Large documents** — Works on 100+ page contracts but PDF generation is slower
+
+## Credits
+
+- [python-docx](https://python-docx.readthedocs.io/) — Word document manipulation
+- [fpdf2](https://py-pdf.github.io/fpdf2/) — PDF generation
+- [lxml](https://lxml.de/) — XML processing for OOXML tracked changes
+
+## Next Steps
+
+- **First time?** Start with [Quick Start](#quick-start)
+- **Need AI review too?** Use [claude-legal-skill](https://github.com/evolsb/claude-legal-skill) for analysis + this tool for output
+- **Found a bug?** [Open an issue](https://github.com/evolsb/legal-redline-tools/issues)
 
 ## License
 
