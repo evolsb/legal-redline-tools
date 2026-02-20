@@ -1,17 +1,21 @@
 [
     {
         "type": "replace",
-        "old": "20% OF FEES PAID",
-        "new": "100% OF FEES PAID OR $250,000, WHICHEVER IS GREATER",
+        "old": "SHALL BE LIMITED TO 20% OF FEES PAID",
+        "new": "SHALL BE LIMITED TO 100% OF FEES PAID, OR $250,000, WHICHEVER IS GREATER",
         "section": "7.2",
         "title": "Liability Cap",
-        "rationale": "20% is below market standard for infrastructure agreements."
+        "tier": 1,
+        "rationale": "20% is well below market standard (100% of trailing 12-month fees).",
+        "walkaway": "Accept 50% with $100K floor.",
+        "precedent": "Industry standard B2B SaaS is 100% of trailing 12-month fees."
     },
     {
         "type": "delete",
         "text": "shall be entitled to immediately terminate this Agreement without liability",
         "section": "9.4",
-        "title": "At-Will Termination",
+        "title": "Delete At-Will Termination",
+        "tier": 2,
         "rationale": "Vague standard gives Company unilateral termination right."
     },
     {
@@ -20,6 +24,16 @@
         "text": ". Either party may terminate for convenience upon 90 days' written notice",
         "section": "9.1",
         "title": "Mutual Termination Right",
+        "tier": 2,
         "rationale": "Adding symmetrical termination rights."
+    },
+    {
+        "type": "add_section",
+        "after_section": "COMPANY PROVIDES THE SOFTWARE AND SERVICES",
+        "text": "Service Level Agreement. Company targets 99.9% monthly API uptime, excluding scheduled maintenance communicated at least 48 hours in advance.",
+        "section": "NEW 11.X",
+        "title": "SLA with Credits",
+        "tier": 1,
+        "rationale": "No SLA means no recourse for outages."
     }
 ]
