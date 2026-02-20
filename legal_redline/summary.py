@@ -41,7 +41,7 @@ def _wrap_text(text, max_chars=90):
 
 
 def generate_summary_pdf(redlines, output_path, doc_title=None,
-                         author="Chris Sheehan", date_str=None,
+                         author=None, date_str=None,
                          doc_parties=None, mode="external"):
     """
     Generate a summary-only redline PDF showing each proposed change
