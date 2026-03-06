@@ -153,7 +153,7 @@ def _normalized_find(haystack, needle):
     return orig_idx, span
 
 
-def _build_redline_segments(full_text, redlines, already_applied=None):
+def _build_redline_segments(full_text, redlines):
     """
     Given a paragraph's full text and the list of redlines, identify which
     redlines apply and build a list of segments for rendering.
@@ -161,27 +161,14 @@ def _build_redline_segments(full_text, redlines, already_applied=None):
     Uses normalized matching to handle smart quotes and whitespace differences
     from PDF-to-docx conversions.
 
-    Args:
-        full_text: The paragraph text to check against
-        redlines: List of all redline dicts
-        already_applied: Set of redline indices that have already been matched
-            to a previous paragraph. These are skipped to prevent the same
-            redline from rendering in multiple paragraphs.
-
     Returns list of dicts:
         {"text": str, "type": "normal"|"deleted"|"inserted"}
 
     Also returns the list of applied redline indices.
     """
-    if already_applied is None:
-        already_applied = set()
-
     # Find all redlines that match this paragraph
     matches = []
     for idx, rl in enumerate(redlines):
-        if idx in already_applied:
-            continue
-
         rtype = rl["type"]
         if rtype == "replace":
             pos, matched_len = _normalized_find(full_text, rl["old"])
@@ -346,7 +333,7 @@ def render_redline_pdf(docx_path, redlines, pdf_path, header_text=None,
     pdf.set_right_margin(15)
     pdf.add_page()
 
-    # Track which redlines were applied (for summary and deduplication)
+    # Track which redlines were applied (for summary)
     applied_redlines = set()
     change_count = 0
     changes_by_type = {"replace": 0, "delete": 0, "insert_after": 0, "add_section": 0}
@@ -389,8 +376,7 @@ def render_redline_pdf(docx_path, redlines, pdf_path, header_text=None,
                 continue
 
             # ── Body paragraph: check for redlines ──
-            segments, applied = _build_redline_segments(full_text, redlines,
-                                                        already_applied=applied_redlines)
+            segments, applied = _build_redline_segments(full_text, redlines)
             has_changes = len(applied) > 0
 
             if has_changes:
