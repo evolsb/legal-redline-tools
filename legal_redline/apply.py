@@ -258,8 +258,14 @@ def apply_tracked_deletion(doc, delete_text, author, date_str):
     return False
 
 
-def apply_tracked_insertion(doc, after_text, new_text, author, date_str):
-    """Insert new text after anchor text as a tracked insertion."""
+def apply_tracked_insertion(doc, after_text, new_text, author, date_str,
+                            as_paragraph=False):
+    """Insert new text after anchor text as a tracked insertion.
+
+    Args:
+        as_paragraph: If True, insert as a new paragraph after the anchor
+            paragraph instead of inline. Use for whole clauses/sections.
+    """
     for para in doc.paragraphs:
         full_text = _get_full_paragraph_text(para)
         if not _contains_normalized(full_text, after_text):
@@ -268,6 +274,29 @@ def apply_tracked_insertion(doc, after_text, new_text, author, date_str):
         result = _find_text_across_runs(para, after_text)
         if result is None:
             continue
+
+        if as_paragraph:
+            # Insert as a new paragraph after the anchor paragraph
+            body = para._element.getparent()
+            target_idx = list(body).index(para._element)
+
+            new_para = OxmlElement("w:p")
+            target_pPr = para._element.find(qn("w:pPr"))
+            if target_pPr is not None:
+                new_pPr = copy.deepcopy(target_pPr)
+                for numPr in new_pPr.findall(qn("w:numPr")):
+                    new_pPr.remove(numPr)
+                new_para.append(new_pPr)
+
+            end_rpr = None
+            target_runs = para._element.findall(qn("w:r"))
+            if target_runs:
+                end_rpr = target_runs[0].find(qn("w:rPr"))
+
+            ins_elem = _make_ins(new_text, author, date_str, end_rpr)
+            new_para.append(ins_elem)
+            body.insert(target_idx + 1, new_para)
+            return True
 
         _, _, end_run_idx, end_offset, _ = result
         runs = para.runs
@@ -393,7 +422,11 @@ def apply_redlines(input_path, output_path, redlines, author="Reviewer"):
             elif rtype == "insert_after":
                 anchor = redline["anchor"]
                 text = redline["text"]
-                success = apply_tracked_insertion(doc, anchor, text, author, date_str)
+                as_para = redline.get("as_paragraph", False)
+                success = apply_tracked_insertion(
+                    doc, anchor, text, author, date_str,
+                    as_paragraph=as_para,
+                )
                 desc = f"Insert after: '{anchor[:40]}...'"
 
             elif rtype == "add_section":

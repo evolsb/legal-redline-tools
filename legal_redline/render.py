@@ -153,7 +153,7 @@ def _normalized_find(haystack, needle):
     return orig_idx, span
 
 
-def _build_redline_segments(full_text, redlines):
+def _build_redline_segments(full_text, redlines, already_applied=None):
     """
     Given a paragraph's full text and the list of redlines, identify which
     redlines apply and build a list of segments for rendering.
@@ -161,14 +161,25 @@ def _build_redline_segments(full_text, redlines):
     Uses normalized matching to handle smart quotes and whitespace differences
     from PDF-to-docx conversions.
 
+    Args:
+        full_text: The paragraph's full text
+        redlines: List of redline dicts
+        already_applied: Set of redline indices already applied to other
+            paragraphs. These will be skipped to prevent duplicates.
+
     Returns list of dicts:
         {"text": str, "type": "normal"|"deleted"|"inserted"}
 
     Also returns the list of applied redline indices.
     """
+    if already_applied is None:
+        already_applied = set()
+
     # Find all redlines that match this paragraph
     matches = []
     for idx, rl in enumerate(redlines):
+        if idx in already_applied:
+            continue
         rtype = rl["type"]
         if rtype == "replace":
             pos, matched_len = _normalized_find(full_text, rl["old"])
@@ -376,7 +387,7 @@ def render_redline_pdf(docx_path, redlines, pdf_path, header_text=None,
                 continue
 
             # ── Body paragraph: check for redlines ──
-            segments, applied = _build_redline_segments(full_text, redlines)
+            segments, applied = _build_redline_segments(full_text, redlines, applied_redlines)
             has_changes = len(applied) > 0
 
             if has_changes:
