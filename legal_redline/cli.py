@@ -34,6 +34,8 @@ def main():
     diff_p.add_argument("-o", "--output", help="Output JSON file for redlines")
     diff_p.add_argument("--context-words", type=int, default=5,
                         help="Context words around changes (default: 5)")
+    diff_p.add_argument("--no-ensure-unique", action="store_true",
+                        help="Skip expanding text snippets for uniqueness")
 
     # ── scan ──
     scan_p = sub.add_parser("scan", help="Scan .docx for blank fields and placeholders")
@@ -219,7 +221,8 @@ def _cmd_diff(args):
     """Run the diff command."""
     print(f"Comparing: {args.old_docx} vs {args.new_docx}")
     redlines = diff_documents(args.old_docx, args.new_docx,
-                              context_words=args.context_words)
+                              context_words=args.context_words,
+                              ensure_unique=not args.no_ensure_unique)
     print(f"Found {len(redlines)} changes")
 
     if args.output:
