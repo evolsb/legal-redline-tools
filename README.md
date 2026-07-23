@@ -276,3 +276,6 @@ cp skill.md ~/.claude/skills/contract-redline/skill.md
 ## License
 
 [MIT](LICENSE)
+
+---
+Built by [Chris Sheehan](https://ctsheehan.com).
