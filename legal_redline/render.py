@@ -99,7 +99,7 @@ def _get_paragraph_text(para):
 
 def _detect_heading_level(para):
     """Detect if paragraph is a heading and return level (1-6) or 0 for body."""
-    style_name = (para.style.name or "").lower()
+    style_name = (getattr(para.style, "name", None) or "").lower()
     if "heading" in style_name:
         for i in range(1, 7):
             if str(i) in style_name:
